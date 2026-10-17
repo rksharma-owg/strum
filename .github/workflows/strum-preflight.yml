@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 env:
-  PATCH_SHA: 7579daa71af26b0809c76a990a17ff7b86720a6c
+  PATCH_SHA: ec9d63a863fb21f5e116b025cf0178c8fb2277b3
   BASELINE_SHA: 90775661c7710b546e25af5e044dc687f1df0e7d
   CARGO_TERM_COLOR: always
 jobs:
@@ -94,7 +94,7 @@ jobs:
             sha: 657ff605dd4ccd68cca826a2d58bf79e75121e1c
           - kind: msrv
             toolchain: 1.71.1
-            sha: 141e2fe077878dc077101c2046806e651cca6e79
+            sha: cb669a7ce35babc627329dc0fcb1b5c08689d90f
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -172,13 +172,15 @@ jobs:
         shell: cmd
         run: |
           rustc -vV
-          rustc -vV | findstr /C:"host: %target%"
+          rustc -vV | findstr /C:"host: x86_64-pc-windows-msvc"
+          if errorlevel 1 exit /b 1
+          rustup target list --installed | findstr /X /C:"%target%"
           if errorlevel 1 exit /b 1
           if "%channel%"=="1.71.1" rustc --version | findstr /B /C:"rustc 1.71.1 "
           if errorlevel 1 exit /b 1
       - name: AppVeyor tests on MSRV
         if: matrix.channel == '1.71.1'
-        run: cargo test --verbose
+        run: cargo test --verbose --target ${{ matrix.target }}
       - name: AppVeyor tests with PHF
         if: matrix.channel != '1.71.1'
-        run: cargo test --verbose --features strum_tests/test_phf
+        run: cargo test --verbose --target ${{ matrix.target }} --features strum_tests/test_phf
