@@ -1,0 +1,103 @@
+name: Strum 498 preflight
+on:
+  push:
+    branches: [codex/ci-strum-498]
+    paths: [.github/workflows/strum-preflight.yml]
+permissions:
+  contents: read
+env:
+  PATCH_SHA: 527c2e7d03bad010779beeecc0ba5b01a77a6854
+  BASELINE_SHA: 90775661c7710b546e25af5e044dc687f1df0e7d
+  CARGO_TERM_COLOR: always
+jobs:
+  checks:
+    name: ${{ matrix.revision }} / ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: [baseline, patch]
+        check: [fmt, clippy]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ matrix.revision == 'patch' && env.PATCH_SHA || env.BASELINE_SHA }}
+          fetch-depth: 0
+      - name: Verify tested commit
+        shell: bash
+        env:
+          TESTED_SHA: ${{ matrix.revision == 'patch' && env.PATCH_SHA || env.BASELINE_SHA }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          git merge-base --is-ancestor "$BASELINE_SHA" HEAD
+          git rev-parse HEAD HEAD^{tree}
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt, clippy
+      - name: Toolchain versions
+        run: rustc --version && cargo --version
+      - name: Formatting
+        if: matrix.check == 'fmt'
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        if: matrix.check == 'clippy'
+        run: cargo clippy --all-targets --all-features -- -D warnings
+  test:
+    name: ${{ matrix.revision }} / tests / ${{ matrix.toolchain }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: [baseline, patch]
+        toolchain: [1.71.1, stable, beta, nightly]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ matrix.revision == 'patch' && env.PATCH_SHA || env.BASELINE_SHA }}
+          fetch-depth: 0
+      - name: Verify tested commit
+        shell: bash
+        env:
+          TESTED_SHA: ${{ matrix.revision == 'patch' && env.PATCH_SHA || env.BASELINE_SHA }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          git merge-base --is-ancestor "$BASELINE_SHA" HEAD
+          git rev-parse HEAD HEAD^{tree}
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Toolchain versions
+        run: rustc --version && cargo --version
+      - name: Build
+        run: cargo build --verbose
+      - name: Tests
+        run: cargo test --verbose
+  phf:
+    name: patch / PHF and all features / ${{ matrix.toolchain }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [1.71.1, stable, beta, nightly]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.PATCH_SHA }}
+          fetch-depth: 0
+      - name: Verify tested commit
+        shell: bash
+        env:
+          TESTED_SHA: ${{ env.PATCH_SHA }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          git merge-base --is-ancestor "$BASELINE_SHA" HEAD
+          git rev-parse HEAD HEAD^{tree}
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: Toolchain versions
+        run: rustc --version && cargo --version
+      - name: PHF regression tests
+        run: cargo test -p strum_tests --features test_phf --test phf
+      - name: All features
+        run: cargo test --all-features --verbose
